@@ -11,7 +11,7 @@ import socket
 
 from jupyter_kernel_mgmt import localinterfaces
 from remote_kernel_provider.launcher import launch_kernel
-from remote_kernel_provider.processproxy import RemoteProcessProxy
+from remote_kernel_provider.lifecycle_manager import RemoteKernelLifecycleManager
 from yarn_api_client.resource_manager import ResourceManager
 from urllib.parse import urlparse
 
@@ -25,21 +25,21 @@ max_poll_attempts = int(os.getenv('EG_MAX_POLL_ATTEMPTS', '10'))
 yarn_shutdown_wait_time = float(os.getenv('EG_YARN_SHUTDOWN_WAIT_TIME', '15.0'))
 
 
-class YarnClusterProcessProxy(RemoteProcessProxy):
+class YarnKernelLifecycleManager(RemoteKernelLifecycleManager):
     """Kernel lifecycle management for YARN clusters."""
     initial_states = {'NEW', 'SUBMITTED', 'ACCEPTED', 'RUNNING'}
     final_states = {'FINISHED', 'KILLED'}  # Don't include FAILED state
 
-    def __init__(self, kernel_manager, proxy_config):
-        super(YarnClusterProcessProxy, self).__init__(kernel_manager, proxy_config)
+    def __init__(self, kernel_manager, lifecycle_config):
+        super(YarnKernelLifecycleManager, self).__init__(kernel_manager, lifecycle_config)
         self.application_id = None
         self.rm_addr = None
         self.yarn_endpoint \
-            = proxy_config.get('yarn_endpoint',
+            = lifecycle_config.get('yarn_endpoint',
                                kernel_manager.app_config.get('yarn_endpoint', "localhost"))  # TODO - default val
         self.yarn_endpoint_security_enabled \
-            = proxy_config.get('yarn_endpoint_security_enabled',
-                               kernel_manager.app_config.get('yarn_endpoint_security_enabled', False))  # TODO - default val
+            = lifecycle_config.get('yarn_endpoint_security_enabled',  # TODO - default val
+                                   kernel_manager.app_config.get('yarn_endpoint_security_enabled', False))
 
         yarn_master = None
         yarn_port = None
@@ -67,7 +67,7 @@ class YarnClusterProcessProxy(RemoteProcessProxy):
 
     def launch_process(self, kernel_cmd, **kwargs):
         """Launches the specified process within a YARN cluster environment."""
-        super(YarnClusterProcessProxy, self).launch_process(kernel_cmd, **kwargs)
+        super(YarnKernelLifecycleManager, self).launch_process(kernel_cmd, **kwargs)
 
         # launch the local run.sh - which is configured for yarn-cluster...
         self.local_proc = launch_kernel(kernel_cmd, **kwargs)
@@ -91,11 +91,11 @@ class YarnClusterProcessProxy(RemoteProcessProxy):
 
         if self._get_application_id():
             state = self._query_app_state_by_id(self.application_id)
-            if state in YarnClusterProcessProxy.initial_states:
+            if state in YarnKernelLifecycleManager.initial_states:
                 result = None
 
         # The following produces too much output (every 3 seconds by default), so commented-out at this time.
-        # self.log.debug("YarnProcessProxy.poll, application ID: {}, kernel ID: {}, state: {}".
+        # self.log.debug("YarnKernelLifecycleManager.poll, application ID: {}, kernel ID: {}, state: {}".
         #               format(self.application_id, self.kernel_id, state))
         return result
 
@@ -105,7 +105,7 @@ class YarnClusterProcessProxy(RemoteProcessProxy):
         :param signum
         :return:
         """
-        self.log.debug("YarnClusterProcessProxy.send_signal {}".format(signum))
+        self.log.debug("YarnKernelLifecycleManager.send_signal {}".format(signum))
         if signum == 0:
             return self.poll()
         elif signum == signal.SIGKILL:
@@ -114,7 +114,7 @@ class YarnClusterProcessProxy(RemoteProcessProxy):
             # Yarn api doesn't support the equivalent to interrupts, so take our chances
             # via a remote signal.  Note that this condition cannot check against the
             # signum value because altternate interrupt signals might be in play.
-            return super(YarnClusterProcessProxy, self).send_signal(signum)
+            return super(YarnKernelLifecycleManager, self).send_signal(signum)
 
     def kill(self):
         """Kill a kernel.
@@ -125,23 +125,23 @@ class YarnClusterProcessProxy(RemoteProcessProxy):
         if self._get_application_id():
             resp = self._kill_app_by_id(self.application_id)
             self.log.debug(
-                "YarnClusterProcessProxy.kill: application ID: {}, confirming application state is not RUNNING"
+                "YarnKernelLifecycleManager.kill: application ID: {}, confirming application state is not RUNNING"
                     .format(self.application_id, resp))
 
             i = 1
             state = self._query_app_state_by_id(self.application_id)
-            while state not in YarnClusterProcessProxy.final_states and i <= max_poll_attempts:
+            while state not in YarnKernelLifecycleManager.final_states and i <= max_poll_attempts:
                 time.sleep(poll_interval)
                 state = self._query_app_state_by_id(self.application_id)
                 i = i + 1
 
-            if state in YarnClusterProcessProxy.final_states:
+            if state in YarnKernelLifecycleManager.final_states:
                 result = None
 
         if result is False:
-            super(YarnClusterProcessProxy, self).kill()
+            super(YarnKernelLifecycleManager, self).kill()
 
-        self.log.debug("YarnClusterProcessProxy.kill, application ID: {}, kernel ID: {}, state: {}"
+        self.log.debug("YarnKernelLifecycleManager.kill, application ID: {}, kernel ID: {}, state: {}"
                        .format(self.application_id, self.kernel_id, state))
         return result
 
@@ -150,25 +150,25 @@ class YarnClusterProcessProxy(RemoteProcessProxy):
         # we might have a defunct process (if using waitAppCompletion = false) - so poll, kill, wait when we have
         # a local_proc.
         if self.local_proc:
-            self.log.debug("YarnClusterProcessProxy.cleanup: Clearing possible defunct process, pid={}...".
+            self.log.debug("YarnKernelLifecycleManager.cleanup: Clearing possible defunct process, pid={}...".
                            format(self.local_proc.pid))
-            if super(YarnClusterProcessProxy, self).poll():
-                super(YarnClusterProcessProxy, self).kill()
-            super(YarnClusterProcessProxy, self).wait()
+            if super(YarnKernelLifecycleManager, self).poll():
+                super(YarnKernelLifecycleManager, self).kill()
+            super(YarnKernelLifecycleManager, self).wait()
             self.local_proc = None
 
         # reset application id to force new query - handles kernel restarts/interrupts
         self.application_id = None
 
         # for cleanup, we should call the superclass last
-        super(YarnClusterProcessProxy, self).cleanup()
+        super(YarnKernelLifecycleManager, self).cleanup()
 
     def confirm_remote_startup(self):
         """ Confirms the yarn application is in a started state before returning.  Should post-RUNNING states be
             unexpectedly encountered (FINISHED, KILLED) then we must throw, otherwise the rest of the server will
             believe its talking to a valid kernel.
         """
-        self.start_time = RemoteProcessProxy.get_current_time()
+        self.start_time = RemoteKernelLifecycleManager.get_current_time()
         i = 0
         ready_to_connect = False  # we're ready to connect when we have a connection file to use
         while not ready_to_connect:
@@ -179,7 +179,7 @@ class YarnClusterProcessProxy(RemoteProcessProxy):
                 # Once we have an application ID, start monitoring state, obtain assigned host and get connection info
                 app_state = self._get_application_state()
 
-                if app_state in YarnClusterProcessProxy.final_states:
+                if app_state in YarnKernelLifecycleManager.final_states:
                     error_message = "KernelID: '{}', ApplicationID: '{}' unexpectedly found in state '{}'" \
                                     " during kernel startup!".format(self.kernel_id, self.application_id, app_state)
                     self.log_and_raise(http_status_code=500, reason=error_message)
@@ -210,7 +210,7 @@ class YarnClusterProcessProxy(RemoteProcessProxy):
     def handle_timeout(self):
         """Checks to see if the kernel launch timeout has been exceeded while awaiting connection info."""
         time.sleep(poll_interval)
-        time_interval = RemoteProcessProxy.get_time_diff(self.start_time, RemoteProcessProxy.get_current_time())
+        time_interval = RemoteKernelLifecycleManager.get_time_diff(self.start_time)
 
         if time_interval > self.kernel_launch_timeout:
             reason = "Application ID is None. Failed to submit a new application to YARN within {} seconds.  " \
@@ -237,27 +237,27 @@ class YarnClusterProcessProxy(RemoteProcessProxy):
             app = self._query_app_by_name(self.kernel_id)
             state_condition = True
             if type(app) is dict and ignore_final_states:
-                state_condition = app.get('state') not in YarnClusterProcessProxy.final_states
+                state_condition = app.get('state') not in YarnKernelLifecycleManager.final_states
 
             if type(app) is dict and len(app.get('id', '')) > 0 and state_condition:
                 self.application_id = app['id']
-                time_interval = RemoteProcessProxy.get_time_diff(self.start_time, RemoteProcessProxy.get_current_time())
+                time_interval = RemoteKernelLifecycleManager.get_time_diff(self.start_time)
                 self.log.info("ApplicationID: '{}' assigned for KernelID: '{}', state: {}, {} seconds after starting."
                               .format(app['id'], self.kernel_id, app.get('state'), time_interval))
             else:
                 self.log.debug("ApplicationID not yet assigned for KernelID: '{}' - retrying...".format(self.kernel_id))
         return self.application_id
 
-    def get_process_info(self):
+    def get_lifecycle_info(self):
         """Captures the base information necessary for kernel persistence relative to YARN clusters."""
-        process_info = super(YarnClusterProcessProxy, self).get_process_info()
-        process_info.update({'application_id': self.application_id})
-        return process_info
+        lifecycle_info = super(YarnKernelLifecycleManager, self).get_lifecycle_info()
+        lifecycle_info.update({'application_id': self.application_id})
+        return lifecycle_info
 
-    def load_process_info(self, process_info):
+    def load_lifecycle_info(self, lifecycle_info):
         """Loads the base information necessary for kernel persistence relative to YARN clusters."""
-        super(YarnClusterProcessProxy, self).load_process_info(process_info)
-        self.application_id = process_info['application_id']
+        super(YarnKernelLifecycleManager, self).load_lifecycle_info(lifecycle_info)
+        self.application_id = lifecycle_info['application_id']
 
     def _query_app_by_name(self, kernel_id):
         """Retrieve application by using kernel_id as the unique app name.

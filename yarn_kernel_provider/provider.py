@@ -7,8 +7,4 @@ class YarnKernelProvider(RemoteKernelProviderBase):
 
     id = 'yarn'
     kernel_file  = 'yarn_kernel.json'
-    expected_process_class = 'yarn_kernel_provider.yarn.YarnClusterProcessProxy'
-    supported_process_classes = [
-        'enterprise_gateway.services.processproxies.yarn.YarnClusterProcessProxy',
-        expected_process_class
-    ]
+    lifecycle_manager_class = 'yarn_kernel_provider.yarn.YarnKernelLifecycleManager'
