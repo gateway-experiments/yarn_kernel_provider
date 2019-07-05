@@ -7,4 +7,4 @@ class YarnKernelProvider(RemoteKernelProviderBase):
 
     id = 'yarn'
     kernel_file  = 'yarn_kernel.json'
-    lifecycle_manager_class = 'yarn_kernel_provider.yarn.YarnKernelLifecycleManager'
+    lifecycle_manager_classes = ['yarn_kernel_provider.yarn.YarnKernelLifecycleManager']
