@@ -134,11 +134,8 @@ class YarnKernelLifecycleManager(RemoteKernelLifecycleManager):
         state = None
         result = False
         if self._get_application_id():
-            resp = self._kill_app_by_id(self.application_id)
-            self.log.debug(
-                "YarnKernelLifecycleManager.kill: application ID: {}, confirming application state is not RUNNING"
-                    .format(self.application_id, resp))
-
+            self._kill_app_by_id(self.application_id)
+            # Check that state has moved to a final state (most likely KILLED)
             i = 1
             state = self._query_app_state_by_id(self.application_id)
             while state not in YarnKernelLifecycleManager.final_states and i <= max_poll_attempts:
@@ -149,11 +146,11 @@ class YarnKernelLifecycleManager(RemoteKernelLifecycleManager):
             if state in YarnKernelLifecycleManager.final_states:
                 result = None
 
-        if result is False:
-            super(YarnKernelLifecycleManager, self).kill()
+        if result is False:  # We couldn't terminate via Yarn, try remote signal
+            result = super(YarnKernelLifecycleManager, self).kill()
 
-        self.log.debug("YarnKernelLifecycleManager.kill, application ID: {}, kernel ID: {}, state: {}"
-                       .format(self.application_id, self.kernel_id, state))
+        self.log.debug("YarnKernelLifecycleManager.kill, application ID: {}, kernel ID: {}, state: {}, result: {}"
+                       .format(self.application_id, self.kernel_id, state, result))
         return result
 
     def cleanup(self):
