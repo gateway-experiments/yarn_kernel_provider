@@ -64,7 +64,7 @@ setup_args = dict(
         'remote_kernel_provider',
         'jupyter_kernel_mgmt',
         'entrypoints',
-        'yarn-api-client>=0.3.3',
+        'yarn-api-client>=0.3.5',
     ],
     extras_require   = {
         'test': ['mock', 'pytest'],
