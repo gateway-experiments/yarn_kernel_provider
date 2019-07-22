@@ -67,11 +67,11 @@ setup_args = dict(
         'yarn-api-client>=0.3.5',
     ],
     extras_require   = {
-        'test': ['mock', 'pytest'],
+        'test': ['mock', 'pytest', 'pytest-console-scripts'],
     },
     entry_points={
         'console_scripts': [
-            'yarn-kernelspec=yarn_kernel_provider.kernelspecapp:main',
+            'jupyter-yarn-kernelspec = yarn_kernel_provider.kernelspecapp:YarnKernelProviderApp.launch_instance',
         ],
         'jupyter_kernel_mgmt.kernel_type_providers' : [
             'yarn = yarn_kernel_provider.provider:YarnKernelProvider',
@@ -81,6 +81,7 @@ setup_args = dict(
     cmdclass         = {
         'bdist_egg': bdist_egg if 'bdist_egg' in sys.argv else bdist_egg_disabled,
     },
+    include_package_data = True,
 )
 
 if __name__ == '__main__':

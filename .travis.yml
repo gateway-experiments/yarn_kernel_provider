@@ -1,0 +1,28 @@
+language: python
+
+python:
+    - 3.6
+    - 3.5
+    - 3.4
+
+install:
+  - pip install --upgrade setuptools pip flake8 pytest-cov codecov pytest-console-scripts
+  - make lint dist 
+  - pip install dist/*.whl coverage
+  - pip freeze
+
+script:
+  - make test
+
+after_success:
+  - echo "Travis exited with ${TRAVIS_TEST_RESULT}"
+  - python --version
+  - pip --version
+  - pip list
+  - codecov
+
+after_failure:
+  - echo "Travis exited with ${TRAVIS_TEST_RESULT}"
+  - python --version
+  - pip --version
+  - pip list

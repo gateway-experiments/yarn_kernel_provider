@@ -1,0 +1,30 @@
+{
+  "language": "R",
+  "display_name": "${display_name}",
+  "metadata": {
+    "lifecycle_manager": {
+      "class_name": "YarnKernelProvider.yarn.YarnKernelLifecycleManager",
+      "config": {
+        "yarn_endpoint": ${yarn_endpoint},
+        "alt_yarn_endpoint": ${alt_yarn_endpoint},
+        "yarn_endpoint_security_enabled": "${yarn_endpoint_security_enabled}"
+      }
+    }
+  },
+  "env": {
+    "SPARK_HOME": "${spark_home}",
+    "SPARK_OPTS": "--master yarn --deploy-mode cluster --name ${KERNEL_ID:-ERROR__NO__KERNEL_ID} --conf spark.yarn.submit.waitAppCompletion=false --conf spark.yarn.am.waitTime=1d --conf spark.yarn.appMasterEnv.PATH=${python_root}/bin:$PATH --conf spark.sparkr.r.command=${python_root}/lib/R/bin/Rscript ${extra_spark_opts} ${KERNEL_EXTRA_SPARK_OPTS}",
+    "LAUNCH_OPTS": ""
+  },
+  "argv": [
+    "${install_dir}/bin/run.sh",
+    "--RemoteProcessProxy.kernel-id",
+    "{kernel_id}",
+    "--RemoteProcessProxy.response-address",
+    "{response_address}",
+    "--RemoteProcessProxy.port-range",
+    "{port_range}",
+    "--RemoteProcessProxy.spark-context-initialization-mode",
+    "${spark_init_mode}"
+  ]
+}

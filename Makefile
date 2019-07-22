@@ -45,22 +45,18 @@ clean-pyc: ## remove Python file artifacts
 	find . -name '__pycache__' -exec rm -fr {} +
 
 clean-test: ## remove test and coverage artifacts
-	rm -fr .tox/
 	rm -f .coverage
 	rm -fr htmlcov/
 	rm -fr .pytest_cache
 
 lint: ## check style with flake8
-	flake8 yarn_kernel_provider tests
+	flake8 yarn_kernel_provider
 
 test: ## run tests quickly with the default Python
-	python setup.py test
-
-test-all: ## run tests on every Python version with tox
-	tox
+	pytest -v --cov yarn_kernel_provider yarn_kernel_provider
 
 coverage: ## check code coverage quickly with the default Python
-	coverage run --source yarn_kernel_provider setup.py test
+	coverage run --source yarn_kernel_provider setup.py
 	coverage report -m
 	coverage html
 	$(BROWSER) htmlcov/index.html

@@ -5,6 +5,6 @@ from remote_kernel_provider.provider import RemoteKernelProviderBase
 
 class YarnKernelProvider(RemoteKernelProviderBase):
 
-    id = 'yarn'
-    kernel_file = 'yarn_kernel.json'
+    id = 'yarnkp'
+    kernel_file = 'yarnkp_kernel.json'
     lifecycle_manager_classes = ['yarn_kernel_provider.yarn.YarnKernelLifecycleManager']

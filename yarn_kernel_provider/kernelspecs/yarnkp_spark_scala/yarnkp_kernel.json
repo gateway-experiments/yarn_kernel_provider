@@ -1,0 +1,32 @@
+{
+  "language": "scala",
+  "display_name": "${display_name}",
+  "metadata": {
+    "lifecycle_manager": {
+      "class_name": "YarnKernelProvider.yarn.YarnKernelLifecycleManager",
+      "config": {
+        "yarn_endpoint": ${yarn_endpoint},
+        "alt_yarn_endpoint": ${alt_yarn_endpoint},
+        "yarn_endpoint_security_enabled": "${yarn_endpoint_security_enabled}"
+      }
+    }
+  },
+  "env": {
+    "SPARK_HOME": "${spark_home}",
+    "__TOREE_SPARK_OPTS__": "--master yarn --deploy-mode cluster --name ${KERNEL_ID:-ERROR__NO__KERNEL_ID} --conf spark.yarn.submit.waitAppCompletion=false --conf spark.yarn.am.waitTime=1d ${extra_spark_opts} ${KERNEL_EXTRA_SPARK_OPTS}",
+    "__TOREE_OPTS__": "--alternate-sigint USR2",
+    "LAUNCH_OPTS": "",
+    "DEFAULT_INTERPRETER": "Scala"
+  },
+  "argv": [
+    "${install_dir}/bin/run.sh",
+    "--RemoteProcessProxy.kernel-id",
+    "{kernel_id}",
+    "--RemoteProcessProxy.response-address",
+    "{response_address}",
+    "--RemoteProcessProxy.port-range",
+    "{port_range}",
+    "--RemoteProcessProxy.spark-context-initialization-mode",
+    "${spark_init_mode}"
+  ]
+}

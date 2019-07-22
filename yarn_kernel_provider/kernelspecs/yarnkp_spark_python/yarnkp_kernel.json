@@ -1,0 +1,32 @@
+{
+  "language": "python",
+  "display_name": "${display_name}",
+  "metadata": {
+    "lifecycle_manager": {
+      "class_name": "YarnKernelProvider.yarn.YarnKernelLifecycleManager",
+      "config": {
+        "yarn_endpoint": ${yarn_endpoint},
+        "alt_yarn_endpoint": ${alt_yarn_endpoint},
+        "yarn_endpoint_security_enabled": "${yarn_endpoint_security_enabled}"
+      }
+    }
+  },
+  "env": {
+    "SPARK_HOME": "${spark_home}",
+    "PYSPARK_PYTHON": "${python_root}/bin/python",
+    "PYTHONPATH": "${HOME}/.local/lib/python3.7/site-packages:${spark_home}/python${py4j_path}",
+    "SPARK_OPTS": "--master yarn --deploy-mode cluster --name ${KERNEL_ID:-ERROR__NO__KERNEL_ID} --conf spark.yarn.submit.waitAppCompletion=false --conf spark.yarn.appMasterEnv.PYTHONUSERBASE=/home/${KERNEL_USERNAME}/.local --conf spark.yarn.appMasterEnv.PYTHONPATH=${HOME}/.local/lib/python3.7/site-packages:${spark_home}/python${py4j_path} --conf spark.yarn.appMasterEnv.PATH=${python_root}/bin:$PATH ${extra_spark_opts} ${KERNEL_EXTRA_SPARK_OPTS}",
+    "LAUNCH_OPTS": ""
+  },
+  "argv": [
+    "${install_dir}/bin/run.sh",
+    "--RemoteProcessProxy.kernel-id",
+    "{kernel_id}",
+    "--RemoteProcessProxy.response-address",
+    "{response_address}",
+    "--RemoteProcessProxy.port-range",
+    "{port_range}",
+    "--RemoteProcessProxy.spark-context-initialization-mode",
+    "${spark_init_mode}"
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "language": "python",
+  "display_name": "${display_name}",
+  "metadata": {
+    "lifecycle_manager": {
+      "class_name": "YarnKernelProvider.yarn.YarnKernelLifecycleManager",
+      "config": {
+        "yarn_endpoint": ${yarn_endpoint},
+        "alt_yarn_endpoint": ${alt_yarn_endpoint},
+        "yarn_endpoint_security_enabled": "${yarn_endpoint_security_enabled}"
+      }
+    }
+  },
+  "env": {
+    "SPARK_HOME": "${spark_home}",
+    "DASK_YARN_EXE": "${python_root}/bin/dask-yarn",
+    "DASK_OPTS": "--name ${KERNEL_ID:-ERROR__NO__KERNEL_ID} --environment python://${python_root}/bin/python --temporary-security-credentials --deploy-mode remote ${extra_dask_opts}",
+    "LAUNCH_OPTS": ""
+  },
+  "argv": [
+    "${install_dir}/bin/run.sh",
+    "--RemoteProcessProxy.kernel-id",
+    "{kernel_id}",
+    "--RemoteProcessProxy.response-address",
+    "{response_address}",
+    "--RemoteProcessProxy.port-range",
+    "{port_range}",
+    "--RemoteProcessProxy.cluster-type",
+    "${spark_init_mode}"
+  ]
+}
