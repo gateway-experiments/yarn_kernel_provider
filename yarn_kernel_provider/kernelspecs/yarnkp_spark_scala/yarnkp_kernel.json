@@ -3,11 +3,11 @@
   "display_name": "${display_name}",
   "metadata": {
     "lifecycle_manager": {
-      "class_name": "YarnKernelProvider.yarn.YarnKernelLifecycleManager",
+      "class_name": "yarn_kernel_provider.yarn.YarnKernelLifecycleManager",
       "config": {
         "yarn_endpoint": ${yarn_endpoint},
         "alt_yarn_endpoint": ${alt_yarn_endpoint},
-        "yarn_endpoint_security_enabled": "${yarn_endpoint_security_enabled}"
+        "yarn_endpoint_security_enabled": ${yarn_endpoint_security_enabled}
       }
     }
   },

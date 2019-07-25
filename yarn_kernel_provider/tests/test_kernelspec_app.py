@@ -125,8 +125,6 @@ def test_create_scala_kernelspec(script_runner, mock_kernels_dir):
     ret = script_runner.run('jupyter-yarn-kernelspec', 'install-spec', '--language=Scala',
                             '--display_name="My Scala Kernel"', '--kernel_name=my_scala_kernel',
                             '--extra_spark_opts=--MyExtraSparkOpts', '--user', env=my_env)
-    print("TEMP: create_scala_kernelspec: stdout: {}".format(ret.stdout))
-    print("TEMP: create_scala_kernelspec: stderr: {}".format(ret.stderr))
     assert ret.success
     assert ret.stderr.startswith("[YKP_SpecInstaller] Installing Yarn Kernel Provider")
     assert ret.stdout == ''

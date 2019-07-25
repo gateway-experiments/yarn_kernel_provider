@@ -203,23 +203,18 @@ class YKP_SpecInstaller(JupyterApp):
 
     def _validate_parameters(self):
         if self.user and self.prefix:
-            self.exit("Can't specify both user and prefix. Please choose one or the other.")
+            self._log_and_exit("Can't specify both user and prefix. Please choose one or the other.")
 
+        entered_language = self.language
         self.language = self.language.lower()
         if self.language not in SUPPORTED_LANGUAGES:
-            self.exit("Language '{}' is not in the set of supported languages: [{}]".
-                      format(self.language, SUPPORTED_LANGUAGES))
-
-        if self.language != DEFAULT_LANGUAGE:  # Issue warning if kernel_name or display_name are defaults
-            if self.kernel_name == DEFAULT_KERNEL_NAMES[DEFAULT_LANGUAGE] or \
-                    self.display_name == DEFAULT_DISPLAY_NAMES[DEFAULT_LANGUAGE]:
-                self.log.warning("Language is {} but kernel name '{}' or display name '{}' reflect "
-                                 "a different language!".format(self.language, self.kernel_name, self.display_name))
+            self._log_and_exit("Language '{}' is not in the set of supported languages: {}".
+                               format(entered_language, SUPPORTED_LANGUAGES))
 
         if self.dask:
             if self.language != PYTHON:
                 self.log.warning("Dask support only works with Python, changing language from {} to Python.".
-                                 format(self.language))
+                                 format(entered_language))
                 self.language = PYTHON
             # if kernel and display names are still defaulted, silently change to dask defaults
             if self.kernel_name == DEFAULT_KERNEL_NAMES[DEFAULT_LANGUAGE]:
@@ -233,6 +228,12 @@ class YKP_SpecInstaller(JupyterApp):
                 self.log.warning("--extra_spark_opts will be ignored for Dask-based kernelspecs.")
                 self.extra_spark_opts = ''
         else:
+            # if kernel and display names are still defaulted, silently change to language defaults
+            if self.kernel_name == DEFAULT_KERNEL_NAMES[DEFAULT_LANGUAGE]:
+                self.kernel_name = DEFAULT_KERNEL_NAMES[self.language]
+            if self.display_name == DEFAULT_DISPLAY_NAMES[DEFAULT_LANGUAGE]:
+                self.display_name = DEFAULT_DISPLAY_NAMES[self.language]
+
             self.template_dir = DEFAULT_KERNEL_NAMES[self.language]
             if len(self.extra_dask_opts) > 0:
                 self.log.warning("--extra_dask_opts will be ignored for Spark-based kernelspecs.")
@@ -240,8 +241,8 @@ class YKP_SpecInstaller(JupyterApp):
 
         self.spark_init_mode = self.spark_init_mode.lower()
         if self.spark_init_mode not in SPARK_INIT_MODES:
-            self.exit("Spark initialization mode '{}' is not in the set of supported initialization modes: [{}]".
-                      format(self.spark_init_mode, SPARK_INIT_MODES))
+            self._log_and_exit("Spark initialization mode '{}' is not in the set of supported "
+                               "initialization modes: {}".format(self.spark_init_mode, SPARK_INIT_MODES))
 
         # sanitize kernel_name
         self.kernel_name = self.kernel_name.replace(' ', '_')
@@ -253,7 +254,7 @@ class YKP_SpecInstaller(JupyterApp):
         substitutions['yarn_endpoint'] = '"{}"'.format(self.yarn_endpoint) if self.yarn_endpoint is not None else 'null'
         substitutions['alt_yarn_endpoint'] = \
             '"{}"'.format(self.alt_yarn_endpoint) if self.alt_yarn_endpoint is not None else 'null'
-        substitutions['yarn_endpoint_security_enabled'] = self.yarn_endpoint_security_enabled
+        substitutions['yarn_endpoint_security_enabled'] = str(self.yarn_endpoint_security_enabled).lower()
         substitutions['extra_spark_opts'] = self.extra_spark_opts
         substitutions['extra_dask_opts'] = self.extra_dask_opts
         substitutions['spark_init_mode'] = self.spark_init_mode
@@ -273,6 +274,10 @@ class YKP_SpecInstaller(JupyterApp):
             except OSError:
                 self.log.warn('Unable to find py4j, installing without PySpark support.')
         return substitutions
+
+    def _log_and_exit(self, msg, exit_status=1):
+        self.log.error(msg)
+        self.exit(exit_status)
 
 
 class YarnKernelProviderApp(Application):
