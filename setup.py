@@ -74,7 +74,7 @@ setup_args = dict(
             'jupyter-yarn-kernelspec = yarn_kernel_provider.kernelspecapp:YarnKernelProviderApp.launch_instance',
         ],
         'jupyter_kernel_mgmt.kernel_type_providers' : [
-            'yarn = yarn_kernel_provider.provider:YarnKernelProvider',
+            'yarnkp = yarn_kernel_provider.provider:YarnKernelProvider',
         ]
     },
     python_requires = ">=3.4",
