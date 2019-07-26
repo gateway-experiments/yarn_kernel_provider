@@ -33,7 +33,7 @@ def test_no_opts(script_runner):
 
 @pytest.mark.script_launch_mode('subprocess')
 def test_bad_subcommand(script_runner):
-    ret = script_runner.run('jupyter-yarn-kernelspec', 'bogus-subcommand')
+    ret = script_runner.run('jupyter', 'yarn-kernelspec', 'bogus-subcommand')
     assert ret.success is False
     assert ret.stdout.startswith("No subcommand specified.")
     assert ret.stderr == ''
@@ -41,17 +41,17 @@ def test_bad_subcommand(script_runner):
 
 @pytest.mark.script_launch_mode('subprocess')
 def test_help_all(script_runner):
-    ret = script_runner.run('jupyter-yarn-kernelspec', 'install-spec', '--help-all')
+    ret = script_runner.run('jupyter-yarn-kernelspec', 'install', '--help-all')
     assert ret.success
-    assert ret.stdout.startswith("A Jupyter kernel for talking to Spark within a YARN cluster")
+    assert ret.stdout.startswith("A Jupyter kernel for talking to Spark/Dask within a YARN cluster")
     assert ret.stderr == ''
 
 
 @pytest.mark.script_launch_mode('subprocess')
 def test_bad_argument(script_runner):
-    ret = script_runner.run('jupyter-yarn-kernelspec', 'install-spec', '--bogus-argument')
+    ret = script_runner.run('jupyter-yarn-kernelspec', 'install', '--bogus-argument')
     assert ret.success is False
-    assert ret.stdout.startswith("A Jupyter kernel for talking to Spark within a YARN cluster")
+    assert ret.stdout.startswith("A Jupyter kernel for talking to Spark/Dask within a YARN cluster")
     assert "[YKP_SpecInstaller] CRITICAL | Unrecognized flag: \'--bogus-argument\'" in ret.stderr
 
 
@@ -59,7 +59,7 @@ def test_bad_argument(script_runner):
 def test_create_kernelspec(script_runner, mock_kernels_dir):
     my_env = os.environ.copy()
     my_env.update({"JUPYTER_DATA_DIR": mock_kernels_dir})
-    ret = script_runner.run('jupyter-yarn-kernelspec', 'install-spec', '--spark_home=/foo/bar',
+    ret = script_runner.run('jupyter-yarn-kernelspec', 'install', '--spark_home=/foo/bar',
                             '--yarn_endpoint=http://acme.com:9999', '--user', env=my_env)
     assert ret.success
     assert ret.stderr.startswith("[YKP_SpecInstaller] Installing Yarn Kernel Provider")
@@ -79,7 +79,7 @@ def test_create_python_kernelspec(script_runner, mock_kernels_dir):
     my_env = os.environ.copy()
     my_env.update({"JUPYTER_DATA_DIR": mock_kernels_dir})
     my_env.update({"SPARK_HOME": "/bar/foo"})
-    ret = script_runner.run('jupyter-yarn-kernelspec', 'install-spec', '--display_name="My Python Kernel"',
+    ret = script_runner.run('jupyter-yarn-kernelspec', 'install', '--display_name="My Python Kernel"',
                             '--kernel_name=my_python_kernel', '--user', env=my_env)
     assert ret.success
     assert ret.stderr.startswith("[YKP_SpecInstaller] Installing Yarn Kernel Provider")
@@ -100,7 +100,7 @@ def test_create_r_kernelspec(script_runner, mock_kernels_dir):
     my_env = os.environ.copy()
     my_env.update({"JUPYTER_DATA_DIR": mock_kernels_dir})
     my_env.update({"SPARK_HOME": "/bar/foo"})
-    ret = script_runner.run('jupyter-yarn-kernelspec', 'install-spec', '--language=R', '--display_name="My R Kernel"',
+    ret = script_runner.run('jupyter-yarn-kernelspec', 'install', '--language=R', '--display_name="My R Kernel"',
                             '--kernel_name=my_r_kernel', '--user', env=my_env)
     assert ret.success
     assert ret.stderr.startswith("[YKP_SpecInstaller] Installing Yarn Kernel Provider")
@@ -122,7 +122,7 @@ def test_create_scala_kernelspec(script_runner, mock_kernels_dir):
     my_env = os.environ.copy()
     my_env.update({"JUPYTER_DATA_DIR": mock_kernels_dir})
     my_env.update({"SPARK_HOME": "/bar/foo"})
-    ret = script_runner.run('jupyter-yarn-kernelspec', 'install-spec', '--language=Scala',
+    ret = script_runner.run('jupyter-yarn-kernelspec', 'install', '--language=Scala',
                             '--display_name="My Scala Kernel"', '--kernel_name=my_scala_kernel',
                             '--extra_spark_opts=--MyExtraSparkOpts', '--user', env=my_env)
     assert ret.success
@@ -143,7 +143,7 @@ def test_create_dask_kernelspec(script_runner, mock_kernels_dir):
     my_env = os.environ.copy()
     my_env.update({"JUPYTER_DATA_DIR": mock_kernels_dir})
     my_env.update({"SPARK_HOME": "/bar/dask"})
-    ret = script_runner.run('jupyter-yarn-kernelspec', 'install-spec', '--language=R',
+    ret = script_runner.run('jupyter', 'yarn-kernelspec', 'install', '--language=R',
                             '--dask', '--display_name="My Dask Kernel"', '--kernel_name=my_dask_kernel',
                             '--python_root=/usr/bogus', '--user', env=my_env)
     assert ret.success

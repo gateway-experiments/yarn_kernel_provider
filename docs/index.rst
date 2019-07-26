@@ -1,5 +1,5 @@
 Welcome to Yarn Kernel Provider's documentation!
-======================================
+================================================
 
 .. toctree::
    :maxdepth: 2
@@ -8,7 +8,6 @@ Welcome to Yarn Kernel Provider's documentation!
    readme
    installation
    usage
-   modules
    contributing
    history
 

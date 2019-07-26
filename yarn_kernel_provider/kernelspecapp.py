@@ -43,11 +43,11 @@ SPARK_INIT_MODES = [DEFAULT_INIT_MODE, 'eager', 'none']
 class YKP_SpecInstaller(JupyterApp):
     """CLI for extension management."""
     name = u'jupyter-yarn-kernelspec'
-    description = u'A Jupyter kernel for talking to Spark within a YARN cluster'
+    description = u'A Jupyter kernel for talking to Spark/Dask within a YARN cluster'
     examples = '''
     jupyter-yarn-kernelspec install --language=R --spark_home=/usr/local/spark
     jupyter-yarn-kernelspec install --kernel_name=dask_python --dask --yarn_endpoint=http://foo.bar:8088/ws/v1/cluster
-    jupyter-yarn-kernelspec install --spark_init_mode='eager'
+    jupyter-yarn-kernelspec install --language=Scala --spark_init_mode='eager'
     '''
     kernel_spec_manager = Instance(KernelSpecManager)
 
@@ -282,17 +282,17 @@ class YKP_SpecInstaller(JupyterApp):
 
 class YarnKernelProviderApp(Application):
     version = __version__
-    name = 'jupyter yarn-kernel-provider'
+    name = 'jupyter yarn-kernelspec'
     description = '''Application used to create kernelspecs for use on Hadoop YARN clusters
 
     \tYarn Kernel Provider Version: {}
     '''.format(__version__)
     examples = '''
-    jupyter yarn_kernel_provider install-spec - Installs the kernel as a Jupyter Kernel.
+    jupyter yarn-kernelspec install - Installs the kernel as a Jupyter Kernel.
     '''
 
     subcommands = Dict({
-        'install-spec': (YKP_SpecInstaller, YKP_SpecInstaller.description.splitlines()[0]),
+        'install': (YKP_SpecInstaller, YKP_SpecInstaller.description.splitlines()[0]),
     })
 
     aliases = {}
