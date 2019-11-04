@@ -2,9 +2,9 @@
 # Distributed under the terms of the Modified BSD License.
 """Code related to managing kernels running in YARN clusters."""
 
+import asyncio
 import os
 import signal
-import time
 import logging
 import errno
 import socket
@@ -13,16 +13,36 @@ from jupyter_kernel_mgmt import localinterfaces
 from remote_kernel_provider.launcher import launch_kernel
 from remote_kernel_provider.lifecycle_manager import RemoteKernelLifecycleManager
 from yarn_api_client.resource_manager import ResourceManager
-from urllib.parse import urlparse
-
-# Default logging level of yarn-api and underlying connectionpool produce too much noise - raise to warning only.
-logging.getLogger('yarn_api_client.resource_manager').setLevel(os.getenv('EG_YARN_LOG_LEVEL', logging.WARNING))
-logging.getLogger('urllib3.connectionpool').setLevel(os.environ.get('EG_YARN_LOG_LEVEL', logging.WARNING))
 
 local_ip = localinterfaces.public_ips()[0]
 poll_interval = float(os.getenv('EG_POLL_INTERVAL', '0.5'))
 max_poll_attempts = int(os.getenv('EG_MAX_POLL_ATTEMPTS', '10'))
 yarn_shutdown_wait_time = float(os.getenv('EG_YARN_SHUTDOWN_WAIT_TIME', '15.0'))
+
+# Default logging level of the underlying modules produce too much noise - handle levels seperate from app
+logging.getLogger('yarn_api_client').setLevel(os.getenv('YARN_API_CLIENT_LOG_LEVEL', logging.INFO))
+logging.getLogger('urllib3').setLevel(os.environ.get('URLLIB_LOG_LEVEL', logging.WARNING))
+
+
+def configure_yarn_api_client_logger():
+    # This is probably due to how Jupyter (traitlets) are configuring the logger,
+    # but, for whatever reason, the yarn_api_client format is not that of Jupyter's.
+    # As a result, we'll configure the logger format to use a similar style.
+    # TODO: we should look into reaching up to the Application and pulling its logger settings.
+    logger = logging.getLogger("yarn_api_client")
+    if not logger.handlers:
+        # Permit formatting customization via env
+        log_format = os.environ.get("YARN_API_CLIENT_LOG_FORMAT",
+                                    "[%(levelname)1.1s %(asctime)s.%(msecs).03d %(name)s] %(message)s")
+        date_format = os.environ.get("YARN_API_CLIENT_DATE_FORMAT", "%Y-%m-%d %H:%M:%S")
+
+        _log_handler = logging.StreamHandler()
+        _log_handler.setFormatter(logging.Formatter(fmt=log_format, datefmt=date_format))
+        logger.addHandler(_log_handler)
+        logger.propagate = False
+
+
+configure_yarn_api_client_logger()
 
 
 class YarnKernelLifecycleManager(RemoteKernelLifecycleManager):
@@ -34,37 +54,38 @@ class YarnKernelLifecycleManager(RemoteKernelLifecycleManager):
         super(YarnKernelLifecycleManager, self).__init__(kernel_manager, lifecycle_config)
         self.application_id = None
         self.rm_addr = None
-        self.yarn_endpoint \
-            = lifecycle_config.get('yarn_endpoint',
-                                   kernel_manager.app_config.get('yarn_endpoint'))
-        self.alt_yarn_endpoint \
-            = lifecycle_config.get('alt_yarn_endpoint',
-                                   kernel_manager.app_config.get('alt_yarn_endpoint'))
 
-        self.yarn_endpoint_security_enabled \
-            = lifecycle_config.get('yarn_endpoint_security_enabled',
-                                   kernel_manager.app_config.get('yarn_endpoint_security_enabled', False))
+        # We'd like to have the kernel.json values override the globally configured values but because
+        # 'null' is the default value for these (and means to go with the local endpoint), we really
+        # can't do that elegantly.  This means that the global setting will be used only if the kernel.json
+        # value is 'null' (None).  For those configurations that want to use the local endpoint, they should
+        # just avoid setting these altogether.
+        self.yarn_endpoint = lifecycle_config.get(
+            'yarn_endpoint', kernel_manager.provider_config.get('yarn_endpoint'))
 
-        yarn_master = alt_yarn_master = None
-        yarn_port = alt_yarn_port = None
+        self.alt_yarn_endpoint = lifecycle_config.get(
+            'alt_yarn_endpoint', kernel_manager.provider_config.get('alt_yarn_endpoint'))
+
+        self.yarn_endpoint_security_enabled = lifecycle_config.get(
+            'yarn_endpoint_security_enabled',
+            kernel_manager.provider_config.get('yarn_endpoint_security_enabled', False))
+
+        endpoints = None
         if self.yarn_endpoint:
-            yarn_url = urlparse(self.yarn_endpoint)
-            yarn_master = yarn_url.hostname
-            yarn_port = yarn_url.port
+            endpoints = [self.yarn_endpoint]
+
             # Only check alternate if "primary" is set.
             if self.alt_yarn_endpoint:
-                alt_yarn_url = urlparse(self.alt_yarn_endpoint)
-                alt_yarn_master = alt_yarn_url.hostname
-                alt_yarn_port = alt_yarn_url.port
+                endpoints.append(self.alt_yarn_endpoint)
 
-        self.resource_mgr = ResourceManager(address=yarn_master,
-                                            port=yarn_port,
-                                            alt_address=alt_yarn_master,
-                                            alt_port=alt_yarn_port,
-                                            kerberos_enabled=self.yarn_endpoint_security_enabled)
+        auth = None
+        if self.yarn_endpoint_security_enabled:
+            from requests_kerberos import HTTPKerberosAuth
+            auth = HTTPKerberosAuth()
 
-        host, port = self.resource_mgr.get_active_host_port()
-        self.rm_addr = host + ':' + str(port)
+        self.resource_mgr = ResourceManager(service_endpoints=endpoints, auth=auth)
+
+        self.rm_addr = self.resource_mgr.get_active_endpoint()
 
         # TODO - fix wait time - should just add member to k-m.
         # YARN applications tend to take longer than the default 5 second wait time.  Rather than
@@ -76,9 +97,9 @@ class YarnKernelLifecycleManager(RemoteKernelLifecycleManager):
             self.log.debug("{class_name} shutdown wait time adjusted to {wait_time} seconds.".
                            format(class_name=type(self).__name__, wait_time=kernel_manager.shutdown_wait_time))
 
-    def launch_process(self, kernel_cmd, **kwargs):
+    async def launch_process(self, kernel_cmd, **kwargs):
         """Launches the specified process within a YARN cluster environment."""
-        super(YarnKernelLifecycleManager, self).launch_process(kernel_cmd, **kwargs)
+        await super(YarnKernelLifecycleManager, self).launch_process(kernel_cmd, **kwargs)
 
         # launch the local run.sh - which is configured for yarn-cluster...
         self.local_proc = launch_kernel(kernel_cmd, **kwargs)
@@ -87,7 +108,7 @@ class YarnKernelLifecycleManager(RemoteKernelLifecycleManager):
 
         self.log.debug("Yarn cluster kernel launched using YARN RM address: {}, pid: {}, Kernel ID: {}, cmd: '{}'"
                        .format(self.rm_addr, self.local_proc.pid, self.kernel_id, kernel_cmd))
-        self.confirm_remote_startup()
+        await self.confirm_remote_startup()
 
         return self
 
@@ -127,7 +148,7 @@ class YarnKernelLifecycleManager(RemoteKernelLifecycleManager):
             # signum value because altternate interrupt signals might be in play.
             return super(YarnKernelLifecycleManager, self).send_signal(signum)
 
-    def kill(self):
+    async def kill(self):
         """Kill a kernel.
         :return: None if the application existed and is not in RUNNING state, False otherwise.
         """
@@ -139,7 +160,7 @@ class YarnKernelLifecycleManager(RemoteKernelLifecycleManager):
             i = 1
             state = self._query_app_state_by_id(self.application_id)
             while state not in YarnKernelLifecycleManager.final_states and i <= max_poll_attempts:
-                time.sleep(poll_interval)
+                await asyncio.sleep(poll_interval)
                 state = self._query_app_state_by_id(self.application_id)
                 i = i + 1
 
@@ -147,13 +168,13 @@ class YarnKernelLifecycleManager(RemoteKernelLifecycleManager):
                 result = None
 
         if result is False:  # We couldn't terminate via Yarn, try remote signal
-            result = super(YarnKernelLifecycleManager, self).kill()
+            result = await super(YarnKernelLifecycleManager, self).kill()
 
         self.log.debug("YarnKernelLifecycleManager.kill, application ID: {}, kernel ID: {}, state: {}, result: {}"
                        .format(self.application_id, self.kernel_id, state, result))
         return result
 
-    def cleanup(self):
+    async def cleanup(self):
         """"""
         # we might have a defunct process (if using waitAppCompletion = false) - so poll, kill, wait when we have
         # a local_proc.
@@ -161,17 +182,17 @@ class YarnKernelLifecycleManager(RemoteKernelLifecycleManager):
             self.log.debug("YarnKernelLifecycleManager.cleanup: Clearing possible defunct process, pid={}...".
                            format(self.local_proc.pid))
             if super(YarnKernelLifecycleManager, self).poll():
-                super(YarnKernelLifecycleManager, self).kill()
-            super(YarnKernelLifecycleManager, self).wait()
+                await super(YarnKernelLifecycleManager, self).kill()
+            await super(YarnKernelLifecycleManager, self).wait()
             self.local_proc = None
 
         # reset application id to force new query - handles kernel restarts/interrupts
         self.application_id = None
 
         # for cleanup, we should call the superclass last
-        super(YarnKernelLifecycleManager, self).cleanup()
+        await super(YarnKernelLifecycleManager, self).cleanup()
 
-    def confirm_remote_startup(self):
+    async def confirm_remote_startup(self):
         """ Confirms the yarn application is in a started state before returning.  Should post-RUNNING states be
             unexpectedly encountered (FINISHED, KILLED) then we must throw, otherwise the rest of the server will
             believe its talking to a valid kernel.
@@ -181,7 +202,7 @@ class YarnKernelLifecycleManager(RemoteKernelLifecycleManager):
         ready_to_connect = False  # we're ready to connect when we have a connection file to use
         while not ready_to_connect:
             i += 1
-            self.handle_timeout()
+            await self.handle_timeout()
 
             if self._get_application_id(True):
                 # Once we have an application ID, start monitoring state, obtain assigned host and get connection info
@@ -196,7 +217,7 @@ class YarnKernelLifecycleManager(RemoteKernelLifecycleManager):
                                format(i, app_state, self.assigned_host, self.kernel_id, self.application_id))
 
                 if self.assigned_host != '':
-                    ready_to_connect = self.receive_connection_info()
+                    ready_to_connect = await self.receive_connection_info()
             else:
                 self.detect_launch_failure()
 
@@ -215,9 +236,9 @@ class YarnKernelLifecycleManager(RemoteKernelLifecycleManager):
                 self.assigned_ip = socket.gethostbyname(self.assigned_host)
         return app_state
 
-    def handle_timeout(self):
+    async def handle_timeout(self):
         """Checks to see if the kernel launch timeout has been exceeded while awaiting connection info."""
-        time.sleep(poll_interval)
+        await asyncio.sleep(poll_interval)
         time_interval = RemoteKernelLifecycleManager.get_time_diff(self.start_time)
 
         if time_interval > self.kernel_launch_timeout:
@@ -234,7 +255,7 @@ class YarnKernelLifecycleManager(RemoteKernelLifecycleManager):
                 else:
                     reason = "App {} is RUNNING, but waited too long ({} secs) to get connection file.  " \
                         "Check YARN logs for more information.".format(self.application_id, self.kernel_launch_timeout)
-            self.kill()
+            await self.kill()
             timeout_message = "KernelID: '{}' launch timeout due to: {}".format(self.kernel_id, reason)
             self.log_and_raise(http_status_code=error_http_code, reason=timeout_message)
 

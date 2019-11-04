@@ -61,14 +61,18 @@ setup_args = dict(
         'Programming Language :: Python :: 3',
     ],
     install_requires = [
-        'remote_kernel_provider',
-        'jupyter_kernel_mgmt',
+        'remote_kernel_provider>=0.3.0',
+        'jupyter_kernel_mgmt>=0.5.1',
         'entrypoints',
-        'yarn-api-client>=0.3.6',
+        'requests',
+        'yarn-api-client>=1.0',
     ],
-    extras_require   = {
-        'test': ['mock', 'pytest', 'pytest-console-scripts'],
+    extras_require = {
+        "kerberos": ['requests_kerberos'],
     },
+    tests_require = [
+        'mock', 'pytest', 'pytest-console-scripts',
+    ],
     entry_points={
         'console_scripts': [
             'jupyter-yarn-kernelspec = yarn_kernel_provider.kernelspecapp:YarnKernelProviderApp.launch_instance',
@@ -77,7 +81,7 @@ setup_args = dict(
             'yarnkp = yarn_kernel_provider.provider:YarnKernelProvider',
         ]
     },
-    python_requires = ">=3.4",
+    python_requires = ">=3.5",
     cmdclass         = {
         'bdist_egg': bdist_egg if 'bdist_egg' in sys.argv else bdist_egg_disabled,
     },
